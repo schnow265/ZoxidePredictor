@@ -10,4 +10,8 @@
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.5.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ZoxidePredictor.Lib\ZoxidePredictor.Lib.csproj" />
+  </ItemGroup>
+
 </Project>

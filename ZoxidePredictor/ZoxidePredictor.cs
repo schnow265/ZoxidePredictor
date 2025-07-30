@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Management.Automation.Subsystem.Prediction;
 using System.Text.RegularExpressions;
 
+using ZoxidePredictor.Lib.Matcher;
+
 namespace ZoxidePredictor
 {
     public partial class ZoxidePredictor : ICommandPredictor, IDisposable
@@ -11,7 +13,9 @@ namespace ZoxidePredictor
         private partial Regex TermSplitter();
 
         private readonly Timer _timer;
-        private readonly ConcurrentDictionary<string, double> _database;
+        private ConcurrentDictionary<string, double> _database;
+
+        private readonly MatchV1 _matcher = new();
 
         internal ZoxidePredictor(string guid)
         {
@@ -48,17 +52,31 @@ namespace ZoxidePredictor
             string input = context.InputAst.Extent.Text;
             if (string.IsNullOrWhiteSpace(input) || !input.StartsWith("cd", StringComparison.Ordinal))
                 return default;
-
+            
             // Handle "cd <path>"
             if (input.Length <= 3 || !input.StartsWith("cd ", StringComparison.Ordinal))
             {
                 return default;
             }
+            
+            if (input == "cd ")
+            {
+                // O(n) but only one pass, faster than full sort for a single best
+                KeyValuePair<string, double>? best = null;
+                foreach (var kv in _database)
+                {
+                    if (best == null || kv.Value > best.Value.Value)
+                        best = kv;
+                }
+                return best is not null
+                    ? new SuggestionPackage([new PredictiveSuggestion("cd " + best.Value.Key)])
+                    : default;
+            }
 
 
-            var path = input.Substring(3).Trim();
-
-            List<PredictiveSuggestion> matches = Match(path);
+            var path = input[3..].Trim();
+            
+            List<PredictiveSuggestion> matches = _matcher.Match(path, ref _database);
             
             return matches.Count > 0 ? new SuggestionPackage(matches) : default;
         }
@@ -98,71 +116,6 @@ namespace ZoxidePredictor
                 string path = string.Join(' ', parts.Skip(1));
                 _database.TryAdd(path, number);
             }
-        }
-
-        private List<PredictiveSuggestion> Match(string query)
-        {
-            var terms = TermSplitter()
-                .Split(query.Trim())
-                .Where(t => !string.IsNullOrEmpty(t))
-                .ToArray();
-
-            if (terms.Length == 0)
-                return [];
-
-            // Get the last component of the last term (for rule 3)
-            string lastTerm = terms.Last();
-            string lastComponent = lastTerm.Contains('/')
-                ? lastTerm[(lastTerm.LastIndexOf('/') + 1)..]
-                : lastTerm;
-
-            // Build sequence of terms to match in order (case-insensitive)
-            var lowerTerms = terms.Select(t => t.ToLowerInvariant()).ToArray();
-
-            // Create list of (path, frecency) to sort by frecency descending
-            var matches = new List<(string path, double frecency)>();
-
-            foreach ((string path, double frecency) in _database)
-            {
-                // 1. Case-insensitive
-                string lowerPath = path.ToLowerInvariant();
-
-                // 2. All terms (including slashes) must be present in order
-                int idx = 0;
-                bool allTermsMatch = true;
-                foreach (string term in lowerTerms)
-                {
-                    idx = lowerPath.IndexOf(term, idx, StringComparison.Ordinal);
-                    if (idx == -1)
-                    {
-                        allTermsMatch = false;
-                        break;
-                    }
-
-                    idx += term.Length;
-                }
-
-                if (!allTermsMatch)
-                    continue;
-
-                // 3. Last component of last keyword must match last component of the path
-                string[] pathComponents = path.Split(['/'], StringSplitOptions.RemoveEmptyEntries);
-                if (pathComponents.Length == 0)
-                    continue;
-
-                string pathLastComponent = pathComponents.Last();
-                if (!pathLastComponent.Equals(lastComponent, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                // Passed all checks, add to matches
-                matches.Add((path: path, frecency: frecency));
-            }
-
-            // 4. Return in descending order of frecency
-            return matches
-                .OrderByDescending(m => m.frecency)
-                .Select(m => new PredictiveSuggestion("cd " + m.path))
-                .ToList();
         }
         
         public void Dispose()
