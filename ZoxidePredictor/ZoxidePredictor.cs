@@ -11,7 +11,7 @@ public class ZoxidePredictor : ICommandPredictor, IDisposable
     private readonly Timer _timer;
     private ConcurrentDictionary<string, double> _database;
 
-    private readonly MatchV4 _matcher = new();
+    private readonly Matcher _matcher = new();
 
     internal ZoxidePredictor(string guid)
     {

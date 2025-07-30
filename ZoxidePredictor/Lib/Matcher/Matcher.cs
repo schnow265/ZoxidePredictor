@@ -3,21 +3,21 @@ using System.Management.Automation.Subsystem.Prediction;
 
 namespace ZoxidePredictor.Lib.Matcher;
 
-public class MatchV2 : IMatch
+public class Matcher
 {
     public List<PredictiveSuggestion> Match(string query, ref ConcurrentDictionary<string, double> database)
     {
         if (string.IsNullOrWhiteSpace(query))
-            return [];
+            return new List<PredictiveSuggestion>();
 
         // Normalize query
         var terms = SplitTerms(query);
         if (terms.Count == 0)
-            return [];
+            return new List<PredictiveSuggestion>();
 
         // Last term split for "last component" logic
         var lastTerm = terms.Last();
-        var lastTermComponents = lastTerm.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var lastTermComponents = lastTerm.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
         var lastKeyword = lastTermComponents.LastOrDefault() ?? lastTerm;
 
         var matches = new List<(string Path, double Score)>();
@@ -41,22 +41,22 @@ public class MatchV2 : IMatch
             .ToList();
     }
 
-    // Split query into terms, preserving slashes as separate terms
+    // Split query into terms, preserving slashes/backslashes as separate terms
     private static List<string> SplitTerms(string query)
     {
         var terms = new List<string>();
         int i = 0, n = query.Length;
         while (i < n)
         {
-            if (query[i] == '/')
+            if (query[i] == '/' || query[i] == '\\')
             {
-                terms.Add("/");
+                terms.Add(query[i].ToString());
                 i++;
                 continue;
             }
 
             int start = i;
-            while (i < n && query[i] != '/')
+            while (i < n && query[i] != '/' && query[i] != '\\')
                 i++;
 
             var term = query.Substring(start, i - start).Trim();
@@ -66,26 +66,37 @@ public class MatchV2 : IMatch
         return terms;
     }
 
-    // Main matching logic
+    // Main matching logic with partial last-component match support
     private static bool IsMatch(string path, List<string> terms, string lastKeyword)
     {
         if (string.IsNullOrEmpty(path))
             return false;
 
-        var pathLower = path.ToLowerInvariant();
-        var pathComponents = pathLower.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        // Normalize path separators: treat both '\' and '/' as equivalent
+        string pathNorm = path.Replace('\\', '/');
+        string pathLower = pathNorm.ToLowerInvariant();
 
-        // All matching is case-insensitive
+        // For extracting components, split on both / and \
+        var pathComponents = path
+            .ToLowerInvariant()
+            .Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+
         int pos = 0;
         foreach (var term in terms)
         {
-            if (term == "/")
+            if (term == "/" || term == "\\")
             {
-                // Next term must start after a slash
+                // Next term must start after a slash or backslash
                 int slashPos = pathLower.IndexOf('/', pos);
-                if (slashPos == -1)
+                int backslashPos = pathLower.IndexOf('\\', pos);
+                int nextSep = -1;
+                if (slashPos == -1) nextSep = backslashPos;
+                else if (backslashPos == -1) nextSep = slashPos;
+                else nextSep = Math.Min(slashPos, backslashPos);
+
+                if (nextSep == -1)
                     return false;
-                pos = slashPos + 1;
+                pos = nextSep + 1;
                 continue;
             }
             // Find the next occurrence of the term in path, after pos
@@ -95,10 +106,15 @@ public class MatchV2 : IMatch
             pos = foundPos + term.Length;
         }
 
-        // The last component of the last keyword must match the last component of the path
+        // The last component of the last keyword must match (fully or partially) the last component of the path
         if (pathComponents.Length == 0)
             return false;
         var lastComponent = pathComponents.Last();
-        return lastComponent.Equals(lastKeyword.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase);
+
+        // Accept full match or partial (contains) match
+        if (!lastComponent.Contains(lastKeyword.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return true;
     }
 }
