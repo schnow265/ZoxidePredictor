@@ -132,7 +132,7 @@ namespace snowUtils.Binary.Subsystems
 
             while (!process.StandardOutput.EndOfStream)
             {
-                string line = process.StandardOutput.ReadLine();
+                string? line = process.StandardOutput.ReadLine();
 
                 if (string.IsNullOrWhiteSpace(line))
                 {

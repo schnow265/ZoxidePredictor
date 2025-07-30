@@ -24,7 +24,7 @@ GUID = 'ffdc2a29-0644-4342-b776-ceda9a057fcd'
 Author = 'schnow265'
 
 # Company or vendor of this module
-CompanyName = 'Unknown'
+CompanyName = 'schnow265'
 
 # Copyright statement for this module
 Copyright = '(c) schnow265. All rights reserved.'
