@@ -11,8 +11,6 @@ public class ZoxidePredictor : ICommandPredictor, IDisposable
     private readonly Timer _timer;
     private ConcurrentDictionary<string, double> _database;
 
-    private readonly Matcher _matcher = new();
-
     internal ZoxidePredictor(string guid)
     {
         _database = new ConcurrentDictionary<string, double>();
@@ -77,7 +75,7 @@ public class ZoxidePredictor : ICommandPredictor, IDisposable
 
         string path = input[3..].Trim();
 
-        List<PredictiveSuggestion> matches = _matcher.Match(path, ref _database);
+        List<PredictiveSuggestion> matches = Matcher.Match(path, ref _database);
 
         return matches.Count > 0 ? new SuggestionPackage(matches) : default;
     }

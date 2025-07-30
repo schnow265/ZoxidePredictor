@@ -3,33 +3,40 @@ using System.Management.Automation.Subsystem.Prediction;
 
 namespace ZoxidePredictor.Lib.Matcher;
 
-public class Matcher
+/// <summary>
+/// C# reimplementation of the Zoxide matching algorithm
+/// from a <see cref="ConcurrentDictionary{TKey,TValue}"/> with a string key (path) and double value (score)
+/// </summary>
+public static class Matcher
 {
-    public List<PredictiveSuggestion> Match(string query, ref ConcurrentDictionary<string, double> database)
+    /// <summary>
+    /// Return predictions following the algorithm from zoxide
+    /// </summary>
+    /// <param name="query">The folder query. Same you would just pass to zoxide to cd.</param>
+    /// <param name="database">A Reference to the built database</param>
+    /// <returns></returns>
+    public static List<PredictiveSuggestion> Match(string query, ref ConcurrentDictionary<string, double> database)
     {
         if (string.IsNullOrWhiteSpace(query))
-            return new List<PredictiveSuggestion>();
+            return [];
 
         // Normalize query
         var terms = SplitTerms(query);
         if (terms.Count == 0)
-            return new List<PredictiveSuggestion>();
+            return [];
 
         // Last term split for "last component" logic
         var lastTerm = terms.Last();
-        var lastTermComponents = lastTerm.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+        var lastTermComponents = lastTerm.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
         var lastKeyword = lastTermComponents.LastOrDefault() ?? lastTerm;
 
         var matches = new List<(string Path, double Score)>();
 
-        foreach (var kvp in database)
+        foreach ((string path, double frecency) in database)
         {
-            var path = kvp.Key;
-            var frecency = kvp.Value;
-
             if (IsMatch(path, terms, lastKeyword))
             {
-                matches.Add((path, frecency));
+                matches.Add((path,frecency));
             }
         }
 
@@ -79,12 +86,12 @@ public class Matcher
         // For extracting components, split on both / and \
         var pathComponents = path
             .ToLowerInvariant()
-            .Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+            .Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
 
         int pos = 0;
         foreach (var term in terms)
         {
-            if (term == "/" || term == "\\")
+            if (term is "/" or "\\")
             {
                 // Next term must start after a slash or backslash
                 int slashPos = pathLower.IndexOf('/', pos);
@@ -112,9 +119,6 @@ public class Matcher
         var lastComponent = pathComponents.Last();
 
         // Accept full match or partial (contains) match
-        if (!lastComponent.Contains(lastKeyword.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        return true;
+        return lastComponent.Contains(lastKeyword.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase);
     }
 }
