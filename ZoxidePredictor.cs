@@ -3,11 +3,15 @@ using System.Diagnostics;
 using System.Management.Automation;
 using System.Management.Automation.Subsystem;
 using System.Management.Automation.Subsystem.Prediction;
+using System.Text.RegularExpressions;
 
-namespace snowUtils.Binary.Subsystems
+namespace ZoxidePredictor
 {
-    public class ZoxidePredictor : ICommandPredictor, IDisposable
+    public partial class ZoxidePredictor : ICommandPredictor, IDisposable
     {
+        [GeneratedRegex(@"\s+", RegexOptions.IgnoreCase, "en-US")]
+        private partial Regex TermSplitter();
+
         private readonly Timer _timer;
         private readonly ConcurrentDictionary<string, double> _database;
 
@@ -47,21 +51,6 @@ namespace snowUtils.Binary.Subsystems
             if (string.IsNullOrWhiteSpace(input) || !input.StartsWith("cd", StringComparison.Ordinal))
                 return default;
 
-            // Special case: "cd " with no argument, suggest most used directory
-            if (input.Length == 3 && input[2] == ' ')
-            {
-                // O(n) but only one pass, faster than full sort for a single best
-                KeyValuePair<string, double>? best = null;
-                foreach (var kv in _database)
-                {
-                    if (best == null || kv.Value > best.Value.Value)
-                        best = kv;
-                }
-                return best is not null
-                    ? new SuggestionPackage([new PredictiveSuggestion("cd " + best.Value.Key)])
-                    : default;
-            }
-
             // Handle "cd <path>"
             if (input.Length <= 3 || !input.StartsWith("cd ", StringComparison.Ordinal))
             {
@@ -71,51 +60,12 @@ namespace snowUtils.Binary.Subsystems
 
             var path = input.Substring(3).Trim();
 
-            // Replace '\' or '/' with spaces in the path for the contains check
-            string pathForContains = path.Replace('\\', ' ').Replace('/', ' ');
-
-            // If path is empty after trimming, return top 10 by score
-            if (string.IsNullOrEmpty(path))
-            {
-                // Partial selection: avoid full sort if _database is large
-                var top = _database.Count <= 10
-                    ? _database.Select(kv => new PredictiveSuggestion("cd " + kv.Key)).ToList()
-                    : _database.OrderByDescending(kv => kv.Value)
-                        .Take(10)
-                        .Select(kv => new PredictiveSuggestion("cd " + kv.Key))
-                        .ToList();
-                return new SuggestionPackage(top);
-            }
-
-            // Suggest directories starting with the path (case-insensitive), top 10 by score
-            var startsWithFiltered = _database
-                .Where(kv => kv.Key.StartsWith(path, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(kv => kv.Value)
-                .Take(10)
-                .Select(kv => new PredictiveSuggestion("cd " + kv.Key))
-                .ToList();
-
-            // If we have enough, return
-            if (startsWithFiltered.Count > 0)
-                return new SuggestionPackage(startsWithFiltered);
-
-            // Also return directories that contain the (normalized) path, top 10 by score
-            var containsFiltered = _database
-                .Where(kv =>
-                {
-                    // Normalize both the key and search string
-                    string normalizedKey = kv.Key.Replace('\\', ' ').Replace('/', ' ');
-                    return normalizedKey.IndexOf(pathForContains, StringComparison.OrdinalIgnoreCase) >= 0;
-                })
-                .OrderByDescending(kv => kv.Value)
-                .Take(10)
-                .Select(kv => new PredictiveSuggestion("cd " + kv.Key))
-                .ToList();
-
-            return containsFiltered.Count > 0 ? new SuggestionPackage(containsFiltered) : default;
+            List<PredictiveSuggestion> matches = Match(path);
+            
+            return matches.Count > 0 ? new SuggestionPackage(matches) : default;
         }
 
-        public void BuildDatabase()
+        private void BuildDatabase()
         {
             if (_database.Count != 0) _database.Clear();
 
@@ -152,10 +102,75 @@ namespace snowUtils.Binary.Subsystems
             }
         }
 
+        private List<PredictiveSuggestion> Match(string query)
+        {
+            var terms = TermSplitter()
+                .Split(query.Trim())
+                .Where(t => !string.IsNullOrEmpty(t))
+                .ToArray();
+
+            if (terms.Length == 0)
+                return [];
+
+            // Get the last component of the last term (for rule 3)
+            string lastTerm = terms.Last();
+            string lastComponent = lastTerm.Contains('/')
+                ? lastTerm[(lastTerm.LastIndexOf('/') + 1)..]
+                : lastTerm;
+
+            // Build sequence of terms to match in order (case-insensitive)
+            var lowerTerms = terms.Select(t => t.ToLowerInvariant()).ToArray();
+
+            // Create list of (path, frecency) to sort by frecency descending
+            var matches = new List<(string path, double frecency)>();
+
+            foreach ((string path, double frecency) in _database)
+            {
+                // 1. Case-insensitive
+                string lowerPath = path.ToLowerInvariant();
+
+                // 2. All terms (including slashes) must be present in order
+                int idx = 0;
+                bool allTermsMatch = true;
+                foreach (string term in lowerTerms)
+                {
+                    idx = lowerPath.IndexOf(term, idx, StringComparison.Ordinal);
+                    if (idx == -1)
+                    {
+                        allTermsMatch = false;
+                        break;
+                    }
+
+                    idx += term.Length;
+                }
+
+                if (!allTermsMatch)
+                    continue;
+
+                // 3. Last component of last keyword must match last component of the path
+                string[] pathComponents = path.Split(['/'], StringSplitOptions.RemoveEmptyEntries);
+                if (pathComponents.Length == 0)
+                    continue;
+
+                string pathLastComponent = pathComponents.Last();
+                if (!pathLastComponent.Equals(lastComponent, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // Passed all checks, add to matches
+                matches.Add((path: path, frecency: frecency));
+            }
+
+            // 4. Return in descending order of frecency
+            return matches
+                .OrderByDescending(m => m.frecency)
+                .Select(m => new PredictiveSuggestion("cd " + m.path))
+                .ToList();
+        }
+        
         public void Dispose()
         {
-            _database.Clear();
             _timer.Dispose();
+            _database.Clear();
         }
 
         #region "interface methods for processing feedback"
@@ -168,7 +183,7 @@ namespace snowUtils.Binary.Subsystems
 
         #endregion;
     }
-
+    
     public class Init : IModuleAssemblyInitializer, IModuleAssemblyCleanup
     {
         private const string Identifier = "ffdc2a29-0644-4342-b776-ceda9a057fcd";

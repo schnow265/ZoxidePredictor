@@ -10,10 +10,4 @@
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.5.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="ZoxidePredictor.psd1">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
 </Project>
