@@ -7,4 +7,4 @@
 ## [V1](./ZoxidePredictor.Benchmarks/Matcher/MatchV1.cs)
 
 - Updated regex splitter to use a [Source generator](https://learn.microsoft.com/en-us/dotnet/standard/base-types/regular-expression-source-generators)
-- Updated syntax to use more niece features of C#
+- Updated syntax to use stranger syntax features of C#, courtesy of my linter
