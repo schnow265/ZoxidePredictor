@@ -11,13 +11,15 @@ public partial class MatchV1
 
     public List<PredictiveSuggestion> Match(string query, ref ConcurrentDictionary<string, double> database)
     {
-        var terms = TermSplitter()
+        string[] terms = TermSplitter()
             .Split(query.Trim())
             .Where(t => !string.IsNullOrEmpty(t))
             .ToArray();
 
         if (terms.Length == 0)
+        {
             return [];
+        }
 
         // Get the last component of the last term (for rule 3)
         string lastTerm = terms.Last();
@@ -26,10 +28,10 @@ public partial class MatchV1
             : lastTerm;
 
         // Build sequence of terms to match in order (case-insensitive)
-        var lowerTerms = terms.Select(t => t.ToLowerInvariant()).ToArray();
+        string[] lowerTerms = terms.Select(t => t.ToLowerInvariant()).ToArray();
 
         // Create list of (path, frecency) to sort by frecency descending
-        var matches = new List<(string path, double frecency)>();
+        List<(string path, double frecency)> matches = [];
 
         foreach ((string path, double frecency) in database)
         {
@@ -52,16 +54,22 @@ public partial class MatchV1
             }
 
             if (!allTermsMatch)
+            {
                 continue;
+            }
 
             // 3. Last component of last keyword must match last component of the path
             string[] pathComponents = path.Split(['/'], StringSplitOptions.RemoveEmptyEntries);
             if (pathComponents.Length == 0)
+            {
                 continue;
+            }
 
             string pathLastComponent = pathComponents.Last();
             if (!pathLastComponent.Equals(lastComponent, StringComparison.OrdinalIgnoreCase))
+            {
                 continue;
+            }
 
             // Passed all checks, add to matches
             matches.Add((path: path, frecency: frecency));

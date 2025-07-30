@@ -1,137 +1,144 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Management.Automation.Subsystem.Prediction;
-using System.Text.RegularExpressions;
 
 using ZoxidePredictor.Lib.Matcher;
 
-namespace ZoxidePredictor
+namespace ZoxidePredictor;
+
+public class ZoxidePredictor : ICommandPredictor, IDisposable
 {
-    public partial class ZoxidePredictor : ICommandPredictor, IDisposable
+    private readonly Timer _timer;
+    private ConcurrentDictionary<string, double> _database;
+
+    private readonly MatchV4 _matcher = new();
+
+    internal ZoxidePredictor(string guid)
     {
-        [GeneratedRegex(@"\s+", RegexOptions.IgnoreCase, "en-US")]
-        private partial Regex TermSplitter();
+        _database = new ConcurrentDictionary<string, double>();
+        Id = new Guid(guid);
 
-        private readonly Timer _timer;
-        private ConcurrentDictionary<string, double> _database;
+        _timer = new Timer(_ => BuildDatabase(), null, TimeSpan.Zero, TimeSpan.FromSeconds(120));
+    }
 
-        private readonly MatchV1 _matcher = new();
+    /// <summary>
+    /// Gets the unique identifier for a subsystem implementation.
+    /// </summary>
+    public Guid Id { get; }
 
-        internal ZoxidePredictor(string guid)
+    /// <summary>
+    /// Gets the name of a subsystem implementation.
+    /// </summary>
+    public string Name => "zoxide";
+
+    /// <summary>
+    /// Gets the description of a subsystem implementation.
+    /// </summary>
+    public string Description => "PSReadline Predictor for zoxide";
+
+    /// <summary>
+    /// Get the predictive suggestions. It indicates the start of a suggestion rendering session.
+    /// </summary>
+    /// <param name="client">Represents the client that initiates the call.</param>
+    /// <param name="context">The <see cref="PredictionContext"/> object to be used for prediction.</param>
+    /// <param name="cancellationToken">The cancellation token to cancel the prediction.</param>
+    /// <returns>An instance of <see cref="SuggestionPackage"/>.</returns>
+    public SuggestionPackage GetSuggestion(PredictionClient client, PredictionContext context,
+        CancellationToken cancellationToken)
+    {
+        string input = context.InputAst.Extent.Text;
+        if (string.IsNullOrWhiteSpace(input) || !input.StartsWith("cd", StringComparison.Ordinal))
         {
-            _database = new ConcurrentDictionary<string, double>();
-            Id = new Guid(guid);
-
-            _timer = new Timer(_ => BuildDatabase(), null, TimeSpan.Zero, TimeSpan.FromSeconds(120));
+            return default;
         }
 
-        /// <summary>
-        /// Gets the unique identifier for a subsystem implementation.
-        /// </summary>
-        public Guid Id { get; }
-
-        /// <summary>
-        /// Gets the name of a subsystem implementation.
-        /// </summary>
-        public string Name => "zoxide";
-
-        /// <summary>
-        /// Gets the description of a subsystem implementation.
-        /// </summary>
-        public string Description => "PSReadline Predictor for zoxide";
-
-        /// <summary>
-        /// Get the predictive suggestions. It indicates the start of a suggestion rendering session.
-        /// </summary>
-        /// <param name="client">Represents the client that initiates the call.</param>
-        /// <param name="context">The <see cref="PredictionContext"/> object to be used for prediction.</param>
-        /// <param name="cancellationToken">The cancellation token to cancel the prediction.</param>
-        /// <returns>An instance of <see cref="SuggestionPackage"/>.</returns>
-        public SuggestionPackage GetSuggestion(PredictionClient client, PredictionContext context, CancellationToken cancellationToken)
+        // Handle "cd <path>"
+        if (input.Length <= 3 || !input.StartsWith("cd ", StringComparison.Ordinal))
         {
-            string input = context.InputAst.Extent.Text;
-            if (string.IsNullOrWhiteSpace(input) || !input.StartsWith("cd", StringComparison.Ordinal))
-                return default;
-            
-            // Handle "cd <path>"
-            if (input.Length <= 3 || !input.StartsWith("cd ", StringComparison.Ordinal))
-            {
-                return default;
-            }
-            
-            if (input == "cd ")
-            {
-                // O(n) but only one pass, faster than full sort for a single best
-                KeyValuePair<string, double>? best = null;
-                foreach (var kv in _database)
-                {
-                    if (best == null || kv.Value > best.Value.Value)
-                        best = kv;
-                }
-                return best is not null
-                    ? new SuggestionPackage([new PredictiveSuggestion("cd " + best.Value.Key)])
-                    : default;
-            }
-
-
-            var path = input[3..].Trim();
-            
-            List<PredictiveSuggestion> matches = _matcher.Match(path, ref _database);
-            
-            return matches.Count > 0 ? new SuggestionPackage(matches) : default;
+            return default;
         }
 
-        private void BuildDatabase()
+        if (input == "cd ")
         {
-            if (!_database.IsEmpty) _database.Clear();
-
-            using var process = new Process();
-            process.StartInfo.FileName = "zoxide";
-            process.StartInfo.Arguments = "query --list --all --score";
-            process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.CreateNoWindow = false;
-            if (!process.Start())
+            // O(n) but only one pass, faster than full sort for a single best
+            KeyValuePair<string, double>? best = null;
+            foreach (KeyValuePair<string, double> kv in _database)
             {
-                return;
+                if (best == null || kv.Value > best.Value.Value)
+                {
+                    best = kv;
+                }
             }
 
-            while (!process.StandardOutput.EndOfStream)
-            {
-                string? line = process.StandardOutput.ReadLine();
-
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    continue;
-                }
-
-                string[] parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
-
-                if (parts.Length < 2 || !double.TryParse(parts[0], System.Globalization.NumberStyles.Any,
-                        System.Globalization.CultureInfo.InvariantCulture, out double number))
-                {
-                    continue;
-                }
-
-                string path = string.Join(' ', parts.Skip(1));
-                _database.TryAdd(path, number);
-            }
+            return best is not null
+                ? new SuggestionPackage([new PredictiveSuggestion("cd " + best.Value.Key)])
+                : default;
         }
-        
-        public void Dispose()
+
+        string path = input[3..].Trim();
+
+        List<PredictiveSuggestion> matches = _matcher.Match(path, ref _database);
+
+        return matches.Count > 0 ? new SuggestionPackage(matches) : default;
+    }
+
+    private void BuildDatabase()
+    {
+        if (!_database.IsEmpty)
         {
-            _timer.Dispose();
             _database.Clear();
         }
 
-        #region "interface methods for processing feedback"
+        using Process process = new();
+        process.StartInfo.FileName = "zoxide";
+        process.StartInfo.Arguments = "query --list --all --score";
+        process.StartInfo.RedirectStandardOutput = true;
+        process.StartInfo.UseShellExecute = false;
+        process.StartInfo.CreateNoWindow = false;
+        if (!process.Start())
+        {
+            return;
+        }
 
-        public bool CanAcceptFeedback(PredictionClient client, PredictorFeedbackKind feedback) => true;
-        public void OnSuggestionDisplayed(PredictionClient client, uint session, int countOrIndex) { }
-        public void OnSuggestionAccepted(PredictionClient client, uint session, string acceptedSuggestion) { }
-        public void OnCommandLineAccepted(PredictionClient client, IReadOnlyList<string> history) { }
-        public void OnCommandLineExecuted(PredictionClient client, string commandLine, bool success) { }
+        while (!process.StandardOutput.EndOfStream)
+        {
+            string? line = process.StandardOutput.ReadLine();
 
-        #endregion;
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            string[] parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length < 2 || !double.TryParse(parts[0], System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out double number))
+            {
+                continue;
+            }
+
+            string path = string.Join(' ', parts.Skip(1));
+            _database.TryAdd(path, number);
+        }
     }
+
+    public void Dispose()
+    {
+        _timer.Dispose();
+        _database.Clear();
+    }
+
+    #region "interface methods for processing feedback"
+
+    public bool CanAcceptFeedback(PredictionClient client, PredictorFeedbackKind feedback)
+    {
+        return true;
+    }
+
+    public void OnSuggestionDisplayed(PredictionClient client, uint session, int countOrIndex) { }
+    public void OnSuggestionAccepted(PredictionClient client, uint session, string acceptedSuggestion) { }
+    public void OnCommandLineAccepted(PredictionClient client, IReadOnlyList<string> history) { }
+    public void OnCommandLineExecuted(PredictionClient client, string commandLine, bool success) { }
+
+    #endregion;
 }

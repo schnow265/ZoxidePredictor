@@ -11,9 +11,9 @@ namespace ZoxidePredictor.Benchmarks.Benchmarks;
 [RPlotExporter]
 public class Matcher
 {
-    private ConcurrentDictionary<string, double> _database  = new();
+    private ConcurrentDictionary<string, double> _database = new();
     private readonly string _query = "repo";
-    
+
     [GlobalSetup]
     public void Setup()
     {
@@ -21,16 +21,28 @@ public class Matcher
     }
 
     [Benchmark]
-    public List<PredictiveSuggestion> MatcherV0() => new MatchV0().Match(_query, ref _database);
+    public List<PredictiveSuggestion> MatcherV0()
+    {
+        return new MatchV0().Match(_query, ref _database);
+    }
 
     [Benchmark]
-    public List<PredictiveSuggestion> MatcherV1() => new MatchV1().Match(_query, ref _database);
+    public List<PredictiveSuggestion> MatcherV1()
+    {
+        return new MatchV1().Match(_query, ref _database);
+    }
     
+    [Benchmark]
+    public List<PredictiveSuggestion> MatcherV2() => new MatchV2().Match(_query, ref _database);
+
     private void BuildDatabase()
     {
-        if (!_database.IsEmpty) _database.Clear();
+        if (!_database.IsEmpty)
+        {
+            _database.Clear();
+        }
 
-        using var process = new Process();
+        using Process process = new();
         process.StartInfo.FileName = "zoxide";
         process.StartInfo.Arguments = "query --list --all --score";
         process.StartInfo.RedirectStandardOutput = true;

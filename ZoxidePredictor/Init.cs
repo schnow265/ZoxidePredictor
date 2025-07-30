@@ -12,7 +12,7 @@ public class Init : IModuleAssemblyInitializer, IModuleAssemblyCleanup
     /// </summary>
     public void OnImport()
     {
-        var zoxidePredictor = new ZoxidePredictor(Identifier);
+        ZoxidePredictor zoxidePredictor = new(Identifier);
         SubsystemManager.RegisterSubsystem(SubsystemKind.CommandPredictor, zoxidePredictor);
     }
 
