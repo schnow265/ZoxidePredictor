@@ -1,24 +1,27 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
-namespace ZoxidePredictor.Benchmarks.Algos;
+namespace ZoxidePredictor.Benchmarks.Matcher;
 
-public class MatchV0(ConcurrentDictionary<string, double> database)
+public partial class MatchV1(ConcurrentDictionary<string, double> database)
 {
+    [GeneratedRegex(@"\s+", RegexOptions.IgnoreCase)]
+    private partial Regex TermSplitter();
+
     public List<string> Match(string query)
     {
-        // Split query into terms
-        var terms = Regex.Split(query.Trim(), @"\s+")
-                         .Where(t => !string.IsNullOrEmpty(t))
-                         .ToArray();
+        var terms = TermSplitter()
+            .Split(query.Trim())
+            .Where(t => !string.IsNullOrEmpty(t))
+            .ToArray();
 
         if (terms.Length == 0)
-            return new List<string>();
+            return [];
 
         // Get the last component of the last term (for rule 3)
         string lastTerm = terms.Last();
         string lastComponent = lastTerm.Contains('/')
-            ? lastTerm.Substring(lastTerm.LastIndexOf('/') + 1)
+            ? lastTerm[(lastTerm.LastIndexOf('/') + 1)..]
             : lastTerm;
 
         // Build sequence of terms to match in order (case-insensitive)
@@ -27,14 +30,11 @@ public class MatchV0(ConcurrentDictionary<string, double> database)
         // Create list of (path, frecency) to sort by frecency descending
         var matches = new List<(string path, double frecency)>();
 
-        foreach (var kvp in database)
+        foreach ((string path, double frecency) in database)
         {
-            string path = kvp.Key;
-            double frecency = kvp.Value;
-
+            // 1. Case-insensitive
             string lowerPath = path.ToLowerInvariant();
 
-            // 1. Case-insensitive
             // 2. All terms (including slashes) must be present in order
             int idx = 0;
             bool allTermsMatch = true;
@@ -46,6 +46,7 @@ public class MatchV0(ConcurrentDictionary<string, double> database)
                     allTermsMatch = false;
                     break;
                 }
+
                 idx += term.Length;
             }
 
@@ -53,7 +54,7 @@ public class MatchV0(ConcurrentDictionary<string, double> database)
                 continue;
 
             // 3. Last component of last keyword must match last component of the path
-            string[] pathComponents = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            string[] pathComponents = path.Split(['/'], StringSplitOptions.RemoveEmptyEntries);
             if (pathComponents.Length == 0)
                 continue;
 
@@ -62,7 +63,7 @@ public class MatchV0(ConcurrentDictionary<string, double> database)
                 continue;
 
             // Passed all checks, add to matches
-            matches.Add((path, frecency));
+            matches.Add((path: path, frecency: frecency));
         }
 
         // 4. Return in descending order of frecency

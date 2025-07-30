@@ -65,7 +65,7 @@ namespace ZoxidePredictor
 
         private void BuildDatabase()
         {
-            if (_database.Count != 0) _database.Clear();
+            if (!_database.IsEmpty) _database.Clear();
 
             using var process = new Process();
             process.StartInfo.FileName = "zoxide";

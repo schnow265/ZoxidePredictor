@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 using BenchmarkDotNet.Attributes;
 
-using ZoxidePredictor.Benchmarks.Algos;
+using ZoxidePredictor.Benchmarks.Matcher;
 
 namespace ZoxidePredictor.Benchmarks.Benchmarks;
 
@@ -27,7 +27,7 @@ public class Matcher
     
     private void BuildDatabase()
     {
-        if (_database.Count != 0) _database.Clear();
+        if (!_database.IsEmpty) _database.Clear();
 
         using var process = new Process();
         process.StartInfo.FileName = "zoxide";

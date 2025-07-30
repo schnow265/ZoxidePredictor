@@ -12,3 +12,10 @@ So all logic in the method ``GetSuggestion`` has to return within 20ms.
 
 ## Matching improvements
 
+To confirm that updates to the algorithm are actually improving the speed, [benchmarks have been written](./ZoxidePredictor.Benchmarks).
+
+Here are the results:
+
+![BoxPlot of results](./assets/ZoxidePredictor.Benchmarks.Benchmarks.Matcher-barplot.png)
+
+A [Changelog](./CHANGELOG.md) is also kept for the matching algorithm
