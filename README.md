@@ -5,9 +5,9 @@ experimental [PSReadLine predictor](https://learn.microsoft.com/en-us/powershell
 using zoxide results to show you what folder you are about to cd into - *before* you press enter.
 
 > Note: This module currently has the zoxide command fixed to ``cd``.
-> 
+>
 > You can set the zoxide alias to ``cd`` by replacing the ``zoxide init`` line in your ``$PROFILE`` with this
-> 
+>
 > ```powershell
 > Invoke-Expression (& { (zoxide init powershell --cmd cd | Out-String) })
 > ```
@@ -17,6 +17,7 @@ using zoxide results to show you what folder you are about to cd into - *before*
 1. Every 60 seconds a background thread activates which will run ``zoxide query --list --all --score`` and parses the result into a dictionary.
 2. Does nothing until you type ``cd`` just like you would with zoxide.
 3. This module then sends prediction results using a C# Reimplementation of the zoxide algorithm to the shell to show up as suggestions
+    ![The Predictor in action](./assets/predictor_in_action.png)
 
 ## Installation
 
@@ -31,11 +32,11 @@ using zoxide results to show you what folder you are about to cd into - *before*
 
 1. Clone this repo
 2. Enter the Subdirectory ``ZoxidePredictor``
-3. Run (best in PowerShell): 
+3. Run (best in PowerShell):
     ```powershell
    # non-Windows
    dotnet publish -c Release -o $HOME/.local/share/powershell/Modules/ZoxidePredictor
-   
+
    # Windows
    dotnet publish -c Release -o $HOME\Documents\PowerShell\Modules\ZoxidePredictor
    ```
