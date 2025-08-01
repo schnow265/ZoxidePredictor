@@ -1,7 +1,7 @@
 ﻿using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Management.Automation.Subsystem.Prediction;
 
+using ZoxidePredictor.Lib;
 using ZoxidePredictor.Lib.Matcher;
 
 namespace ZoxidePredictor;
@@ -13,10 +13,11 @@ public class ZoxidePredictor : ICommandPredictor, IDisposable
 
     internal ZoxidePredictor(string guid)
     {
+        Database dbBuilder = new();
         _database = new ConcurrentDictionary<string, double>();
         Id = new Guid(guid);
 
-        _timer = new Timer(_ => BuildDatabase(), null, TimeSpan.Zero, TimeSpan.FromSeconds(120));
+        _timer = new Timer(_ => dbBuilder.BuildDatabase(ref _database), null, TimeSpan.Zero, TimeSpan.FromSeconds(120));
     }
 
     /// <summary>
@@ -78,46 +79,6 @@ public class ZoxidePredictor : ICommandPredictor, IDisposable
         List<PredictiveSuggestion> matches = Matcher.Match(path, ref _database);
 
         return matches.Count > 0 ? new SuggestionPackage(matches) : default;
-    }
-
-    private void BuildDatabase()
-    {
-        if (!_database.IsEmpty)
-        {
-            _database.Clear();
-        }
-
-        using Process process = new();
-        process.StartInfo.FileName = "zoxide";
-        process.StartInfo.Arguments = "query --list --all --score";
-        process.StartInfo.RedirectStandardOutput = true;
-        process.StartInfo.UseShellExecute = false;
-        process.StartInfo.CreateNoWindow = false;
-        if (!process.Start())
-        {
-            return;
-        }
-
-        while (!process.StandardOutput.EndOfStream)
-        {
-            string? line = process.StandardOutput.ReadLine();
-
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                continue;
-            }
-
-            string[] parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
-
-            if (parts.Length < 2 || !double.TryParse(parts[0], System.Globalization.NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture, out double number))
-            {
-                continue;
-            }
-
-            string path = string.Join(' ', parts.Skip(1));
-            _database.TryAdd(path, number);
-        }
     }
 
     public void Dispose()

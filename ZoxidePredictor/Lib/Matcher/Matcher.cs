@@ -27,7 +27,7 @@ public static class Matcher
 
         // Last term split for "last component" logic
         var lastTerm = terms.Last();
-        var lastTermComponents = lastTerm.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+        var lastTermComponents = lastTerm.Split(['/', '\\', ' '], StringSplitOptions.RemoveEmptyEntries);
         var lastKeyword = lastTermComponents.LastOrDefault() ?? lastTerm;
 
         var matches = new List<(string Path, double Score)>();
@@ -48,14 +48,18 @@ public static class Matcher
             .ToList();
     }
 
-    // Split query into terms, preserving slashes/backslashes as separate terms
+    /// <summary>
+    /// Split query into terms, treating /, \, and space as separators (preserving them as separate terms)
+    /// </summary>
+    /// <param name="query">The entire query</param>
+    /// <returns>The list of split terms</returns>
     private static List<string> SplitTerms(string query)
     {
         var terms = new List<string>();
         int i = 0, n = query.Length;
         while (i < n)
         {
-            if (query[i] == '/' || query[i] == '\\')
+            if (query[i] == '/' || query[i] == '\\' || query[i] == ' ')
             {
                 terms.Add(query[i].ToString());
                 i++;
@@ -63,7 +67,7 @@ public static class Matcher
             }
 
             int start = i;
-            while (i < n && query[i] != '/' && query[i] != '\\')
+            while (i < n && query[i] != '/' && query[i] != '\\' && query[i] != ' ')
                 i++;
 
             var term = query.Substring(start, i - start).Trim();
@@ -73,33 +77,38 @@ public static class Matcher
         return terms;
     }
 
-    // Main matching logic with partial last-component match support
+    /// <summary>
+    /// Main matching logic with partial last-component match support
+    /// </summary>
+    /// <param name="path"></param>
+    /// <param name="terms"></param>
+    /// <param name="lastKeyword"></param>
+    /// <returns></returns>
     private static bool IsMatch(string path, List<string> terms, string lastKeyword)
     {
         if (string.IsNullOrEmpty(path))
             return false;
 
-        // Normalize path separators: treat both '\' and '/' as equivalent
-        string pathNorm = path.Replace('\\', '/');
+        // Normalize path separators: treat both '\', '/', and space as equivalent
+        string pathNorm = path.Replace('\\', '/').Replace(' ', '/');
         string pathLower = pathNorm.ToLowerInvariant();
 
-        // For extracting components, split on both / and \
+        // For extracting components, split on both /, \, and space
         var pathComponents = path
             .ToLowerInvariant()
-            .Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+            .Replace('\\', '/')
+            .Replace(' ', '/')
+            .Split(['/', '\\', ' '], StringSplitOptions.RemoveEmptyEntries);
 
         int pos = 0;
         foreach (var term in terms)
         {
-            if (term is "/" or "\\")
+            if (term is "/" or "\\" or " ")
             {
-                // Next term must start after a slash or backslash
+                // Next term must start after a slash, backslash, or space
                 int slashPos = pathLower.IndexOf('/', pos);
-                int backslashPos = pathLower.IndexOf('\\', pos);
-                int nextSep = -1;
-                if (slashPos == -1) nextSep = backslashPos;
-                else if (backslashPos == -1) nextSep = slashPos;
-                else nextSep = Math.Min(slashPos, backslashPos);
+                // No need to look for space/backslash, as they are normalized to /
+                int nextSep = slashPos;
 
                 if (nextSep == -1)
                     return false;
