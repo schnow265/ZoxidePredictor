@@ -2,22 +2,18 @@
 using System.Management.Automation.Subsystem.Prediction;
 
 using ZoxidePredictor.Lib;
-using ZoxidePredictor.Lib.Matcher;
 
 namespace ZoxidePredictor;
 
-public class ZoxidePredictor : ICommandPredictor, IDisposable
+public class ZoxidePredictor : ICommandPredictor
 {
-    private readonly Timer _timer;
+    private readonly Database _dbBuilder = new();
     private ConcurrentDictionary<string, double> _database;
 
-    internal ZoxidePredictor(string guid)
+    internal ZoxidePredictor(string guid, ref ConcurrentDictionary<string, double> database)
     {
-        Database dbBuilder = new();
-        _database = new ConcurrentDictionary<string, double>();
+        _database = database;
         Id = new Guid(guid);
-
-        _timer = new Timer(_ => dbBuilder.BuildDatabase(ref _database), null, TimeSpan.Zero, TimeSpan.FromSeconds(120));
     }
 
     /// <summary>
@@ -80,13 +76,7 @@ public class ZoxidePredictor : ICommandPredictor, IDisposable
 
         return matches.Count > 0 ? new SuggestionPackage(matches) : default;
     }
-
-    public void Dispose()
-    {
-        _timer.Dispose();
-        _database.Clear();
-    }
-
+    
     #region "interface methods for processing feedback"
 
     public bool CanAcceptFeedback(PredictionClient client, PredictorFeedbackKind feedback)

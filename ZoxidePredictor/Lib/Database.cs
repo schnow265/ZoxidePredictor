@@ -5,7 +5,7 @@ namespace ZoxidePredictor.Lib;
 
 public class Database
 {
-    public void BuildDatabase(ref ConcurrentDictionary<string, double> database)
+    public static void BuildDatabase(ref ConcurrentDictionary<string, double> database)
     {
         if (!database.IsEmpty)
         {

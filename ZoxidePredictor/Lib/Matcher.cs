@@ -1,7 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Management.Automation.Subsystem.Prediction;
 
-namespace ZoxidePredictor.Lib.Matcher;
+namespace ZoxidePredictor.Lib;
 
 /// <summary>
 /// C# reimplementation of the Zoxide matching algorithm
@@ -44,7 +44,18 @@ public static class Matcher
         return matches
             .OrderByDescending(m => m.Score)
             .ThenBy(m => m.Path, StringComparer.OrdinalIgnoreCase)
-            .Select(m => new PredictiveSuggestion("cd " + m.Path))
+            .Select(m => {
+                // Split query and path into components
+                var queryParts = query.Split(['/', '\\', ' '], StringSplitOptions.RemoveEmptyEntries);
+                var pathParts = m.Path.Split(['/', '\\', ' '], StringSplitOptions.RemoveEmptyEntries);
+
+                // Replace last part of query with last part of path
+                if (queryParts.Length > 0 && pathParts.Length > 0)
+                    queryParts[queryParts.Length - 1] = pathParts[pathParts.Length - 1];
+
+                var newQuery = string.Join(" ", queryParts);
+                return new PredictiveSuggestion("cd " + newQuery, m.Path);
+            })
             .ToList();
     }
 
@@ -78,7 +89,7 @@ public static class Matcher
     }
 
     /// <summary>
-    /// Main matching logic with partial last-component match support
+    /// Main matching logic with partial last-component matching
     /// </summary>
     /// <param name="path"></param>
     /// <param name="terms"></param>
@@ -107,12 +118,11 @@ public static class Matcher
             {
                 // Next term must start after a slash, backslash, or space
                 int slashPos = pathLower.IndexOf('/', pos);
-                // No need to look for space/backslash, as they are normalized to /
-                int nextSep = slashPos;
 
-                if (nextSep == -1)
+                // No need to look for space/backslash, as they are normalized to /
+                if (slashPos == -1)
                     return false;
-                pos = nextSep + 1;
+                pos = slashPos + 1;
                 continue;
             }
             // Find the next occurrence of the term in path, after pos
