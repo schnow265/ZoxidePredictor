@@ -14,8 +14,8 @@ using zoxide results to show you what folder you are about to cd into - *before*
 
 ## How does this work?
 
-1. Every 60 seconds a background thread activates which will run ``zoxide query --list --all --score`` and parses the result into a dictionary.
-2. Does nothing until you type ``cd`` just like you would with zoxide.
+1. Every 60 seconds a background thread activates which will run ``zoxide query --list --all --score`` and parses the result into an in-memory dictionary.
+2. Does nothing until you type ``cd `` (note the space at the end) just like you would with zoxide.
 3. This module then sorts prediction results using a [C# Reimplementation of the zoxide algorithm](./ZoxidePredictor/Lib/Matcher.cs) to the shell to show up as suggestions
     ![The Predictor in action](./assets/predictor_in_action.png)
 
@@ -23,10 +23,10 @@ using zoxide results to show you what folder you are about to cd into - *before*
 
 ### Dependencies
 
-- ``zoxide``
 - [PowerShell Core](https://github.com/powerShell/powerShell)
-- ``dotnet`` version 9.x
 - ``PsReadLine`` version 2.1.0 or later (Update using ``Update-Module``)
+- [``dotnet``](https://dot.net) version 9.x
+- [``zoxide``](https://github.com/ajeetdsouza/zoxide)
 
 ### Build & Install
 
