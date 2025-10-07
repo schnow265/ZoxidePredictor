@@ -16,7 +16,7 @@ using zoxide results to show you what folder you are about to cd into - *before*
 
 1. Every 60 seconds a background thread activates which will run ``zoxide query --list --all --score`` and parses the result into a dictionary.
 2. Does nothing until you type ``cd`` just like you would with zoxide.
-3. This module then sorts prediction results using a [C# Reimplementation of the zoxide algorithm](./ZoxidePredictor/Lib/Matcher/Matcher.cs) to the shell to show up as suggestions
+3. This module then sorts prediction results using a [C# Reimplementation of the zoxide algorithm](./ZoxidePredictor/Lib/Matcher.cs) to the shell to show up as suggestions
     ![The Predictor in action](./assets/predictor_in_action.png)
 
 ## Installation
@@ -64,5 +64,5 @@ These are things still to do:
 
 - Add build workflow
 - Add Tests (where possible)
-- *if any of my other projects require it*: Extract [`Matcher.cs`](./ZoxidePredictor/Lib/Matcher/Matcher.cs) into a seperate project and maintain the implementation properly there
+- *if any of my other projects require it*: Extract [`Matcher.cs`](./ZoxidePredictor/Lib/Matcher.cs) into a seperate project and maintain the implementation properly there
 - Find a way to do ci/cd releases on tags to PSGallery for easier installation
