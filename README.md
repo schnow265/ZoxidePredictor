@@ -66,3 +66,11 @@ These are things still to do:
 - Add Tests (where possible)
 - *if any of my other projects require it*: Extract [`Matcher.cs`](./ZoxidePredictor/Lib/Matcher.cs) into a seperate project and maintain the implementation properly there
 - Find a way to do ci/cd releases on tags to PSGallery for easier installation
+
+## Troubleshooting
+
+If you have any issues which aren't printed to the terminal, rebuild the module - but replace `-c Release` with `-c Debug`. This will allow logging code to be included in the build.
+
+The log file is called `debug.log` and is placed in the same location as the built assembly (So the output path from the build command). 
+
+Also, it is called `debug.log` for a reason.
