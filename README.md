@@ -23,16 +23,31 @@ using zoxide results to show you what folder you are about to cd into - *before*
 
 ### Dependencies
 
-- [PowerShell Core](https://github.com/powerShell/powerShell)
+- [PowerShell Core](https://github.com/powerShell/powerShell) 7.0 or later
 - ``PsReadLine`` version 2.1.0 or later (Update using ``Update-Module``)
-- [``dotnet``](https://dot.net) version 9.x
 - [``zoxide``](https://github.com/ajeetdsouza/zoxide)
 
-### Build & Install
+### Install from PowerShell Gallery (Recommended)
+
+Coming soon! Once published to PSGallery, you'll be able to install with:
+
+```powershell
+Install-Module -Name ZoxidePredictor
+```
+
+Then add to your ``$PROFILE``:
+```powershell
+Import-Module ZoxidePredictor
+```
+
+### Build & Install from Source
+
+If you want to build from source or use the latest development version:
 
 1. Clone this repo
-2. Enter the Subdirectory ``ZoxidePredictor``
-3. Run (best in PowerShell):
+2. Ensure you have [``dotnet``](https://dot.net) SDK version 9.x installed
+3. Enter the Subdirectory ``ZoxidePredictor``
+4. Run (best in PowerShell):
     ```powershell
    # non-Windows
    dotnet publish -c Release -o $HOME/.local/share/powershell/Modules/ZoxidePredictor
@@ -40,11 +55,11 @@ using zoxide results to show you what folder you are about to cd into - *before*
    # Windows
    dotnet publish -c Release -o $HOME\Documents\PowerShell\Modules\ZoxidePredictor
    ```
-4. Add the following to your ``$PROFILE``:
+5. Add the following to your ``$PROFILE``:
     ```powershell
     Import-Module ZoxidePredictor
     ```
-5. Restart powershell and verify that the provider has been registered by running ``Get-PSSubsystem -Kind CommandPredictor``, which should have ``zoxide`` under ``Implementations``
+6. Restart powershell and verify that the provider has been registered by running ``Get-PSSubsystem -Kind CommandPredictor``, which should have ``zoxide`` under ``Implementations``
 
 ### Bonus Tip:
 
@@ -65,4 +80,28 @@ These are things still to do:
 - Add build workflow
 - Add Tests (where possible)
 - *if any of my other projects require it*: Extract [`Matcher.cs`](./ZoxidePredictor/Lib/Matcher.cs) into a seperate project and maintain the implementation properly there
-- Find a way to do ci/cd releases on tags to PSGallery for easier installation
+
+## Deployment
+
+This module is configured for automatic deployment to PowerShell Gallery using GitHub Actions.
+
+### Publishing a New Version
+
+To publish a new version to PSGallery:
+
+1. Update the version number if needed (the workflow will use the tag version)
+2. Create and push a version tag:
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+3. The GitHub Actions workflow will automatically:
+   - Build the module
+   - Update the manifest version
+   - Test the module
+   - Publish to PowerShell Gallery
+
+### Required Secrets
+
+The repository needs the following secret configured in GitHub:
+- `PSGALLERY_API_KEY`: Your PowerShell Gallery API key (get it from [PowerShell Gallery](https://www.powershellgallery.com/account/apikeys))
