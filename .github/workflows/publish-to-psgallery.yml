@@ -1,0 +1,70 @@
+name: Publish to PowerShell Gallery
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      
+      - name: Setup PowerShell
+        shell: pwsh
+        run: |
+          $PSVersionTable
+      
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+      
+      - name: Update module version in manifest
+        shell: pwsh
+        run: |
+          $manifestPath = "ZoxidePredictor/ZoxidePredictor.psd1"
+          $version = "${{ steps.get_version.outputs.version }}"
+          Update-ModuleManifest -Path $manifestPath -ModuleVersion $version
+          Write-Host "Updated module version to $version"
+      
+      - name: Build and publish module
+        shell: pwsh
+        run: |
+          $publishDir = "publish"
+          dotnet publish ZoxidePredictor/ZoxidePredictor.csproj -c Release -o $publishDir
+          Write-Host "Module published to $publishDir"
+          Get-ChildItem $publishDir
+      
+      - name: Test module manifest
+        shell: pwsh
+        run: |
+          $manifest = Test-ModuleManifest -Path publish/ZoxidePredictor.psd1
+          Write-Host "Module Name: $($manifest.Name)"
+          Write-Host "Module Version: $($manifest.Version)"
+          Write-Host "Module GUID: $($manifest.Guid)"
+      
+      - name: Publish to PowerShell Gallery
+        shell: pwsh
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          if ([string]::IsNullOrEmpty($env:PSGALLERY_API_KEY)) {
+            Write-Error "PSGALLERY_API_KEY secret is not set"
+            exit 1
+          }
+          
+          Write-Host "Publishing module to PowerShell Gallery..."
+          Publish-Module -Path publish -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose
+          Write-Host "Module published successfully!"
